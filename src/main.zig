@@ -1,22 +1,37 @@
 const std = @import("std");
-
 const rl = @import("raylib");
 
-pub fn main(_: std.process.Init) !void {
-    rl.initWindow(800, 600, "hentai");
+const Game = @import("game.zig");
+
+pub fn main(init: std.process.Init) !void {
+    rl.setConfigFlags(.{ .vsync_hint = true, .fullscreen_mode = true });
+    rl.initWindow(1280, 720, "Linger");
     defer rl.closeWindow();
 
+    rl.toggleFullscreen();
 
-    var color: rl.Color = .pink;
-    while (!rl.windowShouldClose()) {
+    var game = Game.init(init.gpa);
+    defer game.deinit();
+
+    const target = try rl.loadRenderTexture(Game.WIDTH, Game.HEIGHT);
+    defer target.unload();
+
+    rl.setTextureFilter(target.texture, .point);
+
+    try game.load();
+
+    while (!game.should_close and !rl.windowShouldClose()) {
+        const dt = rl.getFrameTime();
+        try game.update(dt);
+
+        rl.beginTextureMode(target);
+        rl.clearBackground(.blank);
+        try game.draw();
+        rl.endTextureMode();
+
         rl.beginDrawing();
-        defer rl.endDrawing();
-
-        if (rl.isKeyPressed(.q)) break;
-
-        if (rl.isKeyPressed(.a)) color = .purple
-        else if (rl.isKeyPressed(.s)) color = .pink;
-
-        rl.clearBackground(color);
+        rl.clearBackground(.black);
+        try game.postprocess(&target);
+        rl.endDrawing();
     }
 }
