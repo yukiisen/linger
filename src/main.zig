@@ -8,8 +8,6 @@ pub fn main(init: std.process.Init) !void {
     rl.initWindow(1280, 720, "Linger");
     defer rl.closeWindow();
 
-    rl.toggleFullscreen();
-
     var game = Game.init(init.gpa);
     defer game.deinit();
 

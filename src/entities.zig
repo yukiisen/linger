@@ -18,18 +18,71 @@ pub const Body = struct {
     }
 };
 
+pub const Entity = struct {
+    const Self = @This();
+
+    ptr: *anyopaque,
+    body: *Body,
+    updateFn: *const fn(*anyopaque, f32) anyerror!void,
+    drawFn: *const fn(*anyopaque) anyerror!void,
+    possessedFn: *const fn(*anyopaque) ?soul.Possessed,
+    deinitFn: *const fn(*anyopaque) void,
+
+    pub fn create(ptr: anytype) Self {
+        const T = @typeInfo(@TypeOf(ptr)).pointer.child;
+        if (!@hasField(T, "body")) @compileError("Type " ++ @typeName(T) ++ " has no field named body");
+
+        return .{
+            .ptr = ptr,
+            .body = &@field(ptr, "body"),
+            .updateFn = struct {
+                fn f(p: *anyopaque, dt: f32) !void {
+                    const self: *T = @alignCast(@ptrCast(p));
+                    if (@hasDecl(T, "update")) return T.update(self, dt);
+                }
+            }.f,
+            .drawFn = struct {
+                fn f(p: *anyopaque) !void {
+                    const self: *T = @alignCast(@ptrCast(p));
+                    if (@hasDecl(T, "draw")) return T.draw(self);
+                }
+            }.f,
+            .possessedFn = struct {
+                fn f(p: *anyopaque) ?soul.Possessed {
+                    const self: *T = @alignCast(@ptrCast(p));
+                    if (@hasDecl(T, "getPossessed")) return T.getPossessed(self)
+                    else return null;
+                }
+            }.f,
+            .deinitFn = struct {
+                fn f(p: *anyopaque) void {
+                    const self: *T = @alignCast(@ptrCast(p));
+                    if (@hasDecl(T, "deinit")) return T.deinit(self);
+                }
+            }.f,
+        };
+    }
+};
+
 pub const Player = struct {
     const Self = @This();
     body: Body = .{
-        .acceleration = .init(0, 900)
+        .acceleration = .init(0, gravity)
     },
 
-    const speed = 240;
-    const jump = -450;
+    pub const speed = 240;
+    pub const jump = -450;
+    pub const gravity = 900;
 
-    pub fn update(self: *Self, dt: f32) void {
-        self.body.velocity = self.body.velocity.add(self.body.acceleration.multiply(.init(dt, dt)));
+    pub fn spawn(x: f32, y: f32) Self {
+        var self = Self {};
+        self.body.rect.x = x * 32;
+        self.body.rect.y = y * 32;
 
+        return self;
+    }
+
+    pub fn update(self: *Self, _: f32) void {
         if (rl.isKeyDown(.a)) self.body.velocity.x = -speed
         else if (rl.isKeyDown(.d)) self.body.velocity.x = speed
         else self.body.velocity.x = 0;

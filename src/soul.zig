@@ -81,6 +81,7 @@ pub const Soul = struct {
             self.state = .detached;
             self.possessed.body.velocity = .zero();
             self.rect = self.possessed.body.rect;
+            self.possessed.body.acceleration.y = self.possessed.body.acceleration.y / 2;
         }
 
         if (self.state == .attached) return self.possessed.update(dt);
@@ -115,6 +116,7 @@ pub const Soul = struct {
         if (!rl.isKeyDown(DETACH_BTN)) {
             self.state = .attached;
             self.possessed.body.rect = self.rect;
+            self.possessed.body.acceleration.y = self.possessed.body.acceleration.y * 2;
         }
 
     }

@@ -13,7 +13,7 @@ pub const WIDTH = 640;
 pub const HEIGHT = 360;
 
 gpa: std.mem.Allocator,
-player: Player = .{},
+player: Player = .spawn(10, 0),
 soul: Soul = undefined,
 blocks: std.array_list.Managed(Block),
 should_close: bool = false,
@@ -90,6 +90,8 @@ pub fn update(self: *Self, dt: f32) !void {
 }
 
 fn handle_movement(self: *Self, dt: f32, body: *Body) void {
+    body.velocity = body.velocity.add(body.acceleration.scale(dt));
+
     body.rect.x = body.rect.x + body.velocity.x * dt;
 
     for (self.blocks.items) |block| {
