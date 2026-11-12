@@ -15,10 +15,11 @@ pub fn main(init: std.process.Init) !void {
     defer target.unload();
 
     rl.setTextureFilter(target.texture, .point);
+    rl.setExitKey(.q);
 
     try game.load();
 
-    while (!game.should_close and !rl.windowShouldClose()) {
+    while (!rl.windowShouldClose()) {
         const dt = rl.getFrameTime();
         try game.update(dt);
 

@@ -5,9 +5,17 @@ const soul = @import("soul.zig");
 
 pub const Body = struct {
     const Self = @This();
+
+    pub const BodyType = enum {
+        static,
+        dynamic,
+        kinematic
+    };
+
     rect: rl.Rectangle = .init(0, 0, 32, 32 * 2),
     velocity: rl.Vector2 = .zero(),
     acceleration: rl.Vector2 = .zero(),
+    kind: BodyType,
     grounded: bool = false,
 
     pub fn getCenter(body: *const Self) rl.Vector2 {
@@ -62,27 +70,42 @@ pub const Entity = struct {
             }.f,
         };
     }
+
+    pub fn update(self: *Self, dt: f32) !void {
+        try self.updateFn(self.ptr, dt);
+    }
+
+    pub fn draw(self: Self) !void {
+        try self.drawFn(self.ptr);
+    }
+
+    pub fn getPossessed(self: Self) ?soul.Possessed {
+        return self.possessedFn(self.ptr);
+    }
 };
 
 pub const Player = struct {
     const Self = @This();
     body: Body = .{
-        .acceleration = .init(0, gravity)
+        .acceleration = .init(0, gravity),
+        .kind = .dynamic
     },
+
+    color: rl.Color,
 
     pub const speed = 240;
     pub const jump = -450;
     pub const gravity = 900;
 
-    pub fn spawn(x: f32, y: f32) Self {
-        var self = Self {};
+    pub fn spawn(x: f32, y: f32, color: rl.Color) Self {
+        var self = Self { .color = color };
         self.body.rect.x = x * 32;
         self.body.rect.y = y * 32;
 
         return self;
     }
 
-    pub fn update(self: *Self, _: f32) void {
+    pub fn pupdate(self: *Self, _: f32) void {
         if (rl.isKeyDown(.a)) self.body.velocity.x = -speed
         else if (rl.isKeyDown(.d)) self.body.velocity.x = speed
         else self.body.velocity.x = 0;
@@ -93,12 +116,15 @@ pub const Player = struct {
         }
     }
 
+    pub fn getPossessed(self: *Self) soul.Possessed {
+        return .init(self);
+    }
+
     pub fn draw(self: *const Self) void {
-        rl.drawRectangleRec(self.body.rect, .red);
+        rl.drawRectangleRec(self.body.rect, self.color);
     }
 };
 
 pub const Block = struct {
     rect: rl.Rectangle,
 };
-

@@ -2,57 +2,34 @@ const std = @import("std");
 const rl = @import("raylib");
 
 const Body = @import("entities.zig").Body;
+const Entity = @import("entities.zig").Entity;
 
 pub const Possessed = struct {
     const Self = @This();
 
     ptr: *anyopaque,
     body: *Body,
-    _update: *const fn(*anyopaque, f32) anyerror!void,
-    _draw: *const fn(*const anyopaque) anyerror!void,
-    _deinit: *const fn(*anyopaque) void,
+    updateFn: *const fn(*anyopaque, f32) anyerror!void,
 
     pub fn init(ptr: anytype) Self {
         const T = @typeInfo(@TypeOf(ptr)).pointer.child;
-        if (!@hasDecl(T, "update")) @compileError("Type " ++ @typeName(T) ++ " has no method named update");
-        if (!@hasDecl(T, "draw")) @compileError("Type " ++ @typeName(T) ++ " has no method named draw");
         if (!@hasField(T, "body")) @compileError("Type " ++ @typeName(T) ++ " has no field named body");
+        if (!@hasDecl(T, "pupdate")) @compileError("Type " ++ @typeName(T) ++ " has no member named pupdate");
 
         return .{
             .ptr = ptr,
             .body = &@field(ptr, "body"),
-            ._update = struct {
+            .updateFn = struct {
                 fn f(p: *anyopaque, dt: f32) !void {
                     const self: *T = @alignCast(@ptrCast(p));
-                    return T.update(self, dt);
-                }
-            }.f,
-            ._draw = struct {
-                fn f(p: *const anyopaque) !void {
-                    const self: *const T = @alignCast(@ptrCast(p));
-                    return T.draw(self);
-                }
-            }.f,
-            ._deinit = struct {
-                fn f(p: *anyopaque) void {
-                    if (!@hasDecl(T, "deinit")) return;
-                    const self: *T = @alignCast(@ptrCast(p));
-                    return T.deinit(self);
+                    return T.pupdate(self, dt);
                 }
             }.f,
         };
     }
 
     pub fn update(self: *Self, dt: f32) !void {
-        return self._update(self.ptr, dt);
-    }
-
-    pub fn draw(self: *const Self) !void {
-        return self._draw(self.ptr);
-    }
-
-    pub fn deinit(self: *Self) void {
-        return self._deinit(self.ptr);
+        return self.updateFn(self.ptr, dt);
     }
 };
 
@@ -76,7 +53,7 @@ pub const Soul = struct {
         );
     }
 
-    pub fn update(self: *Self, dt: f32) !void {
+    pub fn update(self: *Self, entities: []Entity, dt: f32) !void {
         if (self.state == .attached and rl.isKeyDown(DETACH_BTN)) {
             self.state = .detached;
             self.possessed.body.velocity = .zero();
@@ -115,15 +92,20 @@ pub const Soul = struct {
 
         if (!rl.isKeyDown(DETACH_BTN)) {
             self.state = .attached;
-            self.possessed.body.rect = self.rect;
             self.possessed.body.acceleration.y = self.possessed.body.acceleration.y * 2;
-        }
 
+            for (entities) |entity| {
+                if (rl.checkCollisionCircleRec(self.getCenter(), 32, entity.body.rect)) {
+                    if (entity.getPossessed()) |possessed| {
+                        self.possessed = possessed;
+                        break;
+                    }
+                }
+            }
+        }
     }
 
     pub fn draw(self: *const Self) !void {
-        try self.possessed.draw();
-
         if (self.state == .detached) {
             const center = self.possessed.body.getCenter();
 

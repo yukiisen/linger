@@ -4,6 +4,7 @@ const rl = @import("raylib");
 const Body = @import("entities.zig").Body;
 const Block = @import("entities.zig").Block;
 const Player = @import("entities.zig").Player;
+const Entity = @import("entities.zig").Entity;
 const Soul = @import("soul.zig").Soul;
 const Possessed = @import("soul.zig").Possessed;
 
@@ -13,10 +14,11 @@ pub const WIDTH = 640;
 pub const HEIGHT = 360;
 
 gpa: std.mem.Allocator,
-player: Player = .spawn(10, 0),
+player: Player = .spawn(10, 0, .red),
+player2: Player = .spawn(10, 4, .pink),
 soul: Soul = undefined,
 blocks: std.array_list.Managed(Block),
-should_close: bool = false,
+entities: std.array_list.Managed(Entity),
 camera: rl.Camera2D = .{
     .offset = .zero(),
     .target = .zero(),
@@ -28,11 +30,13 @@ pub fn init(gpa: std.mem.Allocator) Self {
     return .{
         .gpa = gpa,
         .blocks = .init(gpa),
+        .entities =  .init(gpa),
     };
 }
 
 pub fn deinit(self: *Self) void {
     self.blocks.deinit();
+    self.entities.deinit();
 }
 
 pub fn load(self: *Self) !void {
@@ -68,21 +72,22 @@ pub fn load(self: *Self) !void {
         }
     }
 
-    self.soul = .{ .possessed = Possessed.init(&self.player) };
+    self.soul = .{ .possessed = self.player.getPossessed() };
+    try self.entities.append(.create(&self.player));
+    try self.entities.append(.create(&self.player2));
 }
 
-const gravity = 900;
-
 pub fn update(self: *Self, dt: f32) !void {
-    if (rl.isKeyDown(.q)) return self.close();
+    try self.soul.update(self.entities.items, dt);
 
-    try self.soul.update(dt);
-
-    self.handle_movement(dt, &self.player.body);
+    for (self.entities.items) |*entity| {
+        try entity.update(dt);
+        self.handle_movement(dt, entity.body);
+    }
 
     self.camera.target = .lerp(
         self.camera.target,
-        self.player.body.getCenter(),
+        self.soul.possessed.body.getCenter(),
         8.0 * dt,
     );
 
@@ -127,6 +132,10 @@ fn handle_movement(self: *Self, dt: f32, body: *Body) void {
 pub fn draw(self: *const Self) !void {
     self.camera.begin();
     
+    for (self.entities.items) |entity| {
+        try entity.draw();
+    }
+
     try self.soul.draw();
 
     for (self.blocks.items) |block| {
@@ -169,8 +178,4 @@ pub fn postprocess(_: *Self, target: *const rl.RenderTexture) !void {
         0,
         .white,
     );
-}
-
-inline fn close(self: *Self) void {
-    self.should_close = true;
 }
