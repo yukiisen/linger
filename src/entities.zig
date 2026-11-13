@@ -9,7 +9,7 @@ pub const Body = struct {
     pub const BodyType = enum {
         static,
         dynamic,
-        kinematic
+        kinematic,
     };
 
     rect: rl.Rectangle = .init(0, 0, 32, 32 * 2),
@@ -29,19 +29,25 @@ pub const Body = struct {
 pub const Entity = struct {
     const Self = @This();
 
+    gpa: std.mem.Allocator,
     ptr: *anyopaque,
     body: *Body,
     updateFn: *const fn(*anyopaque, f32) anyerror!void,
     drawFn: *const fn(*anyopaque) anyerror!void,
     possessedFn: *const fn(*anyopaque) ?soul.Possessed,
-    deinitFn: *const fn(*anyopaque) void,
+    deinitFn: *const fn(*anyopaque, std.mem.Allocator) void,
 
-    pub fn create(ptr: anytype) Self {
-        const T = @typeInfo(@TypeOf(ptr)).pointer.child;
+    pub fn create(gpa: std.mem.Allocator, val: anytype) !Self {
+        const T = @TypeOf(val);
+        if (@typeInfo(T) != .@"struct") @compileError(@typeName(T) ++ " is not a struct type");
         if (!@hasField(T, "body")) @compileError("Type " ++ @typeName(T) ++ " has no field named body");
+
+        const ptr = try gpa.create(T);
+        ptr.* = val;
 
         return .{
             .ptr = ptr,
+            .gpa = gpa,
             .body = &@field(ptr, "body"),
             .updateFn = struct {
                 fn f(p: *anyopaque, dt: f32) !void {
@@ -63,9 +69,10 @@ pub const Entity = struct {
                 }
             }.f,
             .deinitFn = struct {
-                fn f(p: *anyopaque) void {
+                fn f(p: *anyopaque, allocator: std.mem.Allocator) void {
                     const self: *T = @alignCast(@ptrCast(p));
-                    if (@hasDecl(T, "deinit")) return T.deinit(self);
+                    if (@hasDecl(T, "deinit")) T.deinit(self);
+                    allocator.destroy(self);
                 }
             }.f,
         };
@@ -75,12 +82,16 @@ pub const Entity = struct {
         try self.updateFn(self.ptr, dt);
     }
 
-    pub fn draw(self: Self) !void {
+    pub fn draw(self: *Self) !void {
         try self.drawFn(self.ptr);
     }
 
-    pub fn getPossessed(self: Self) ?soul.Possessed {
+    pub fn getPossessed(self: *Self) ?soul.Possessed {
         return self.possessedFn(self.ptr);
+    }
+
+    pub fn destroy(self: *Self) void {
+        self.deinitFn(self.ptr, self.gpa);
     }
 };
 
@@ -126,5 +137,16 @@ pub const Player = struct {
 };
 
 pub const Block = struct {
-    rect: rl.Rectangle,
+    const Self = @This();
+    body: Body,
+
+    pub fn init(x: f32, y: f32, w: f32, h: f32) Self {
+        return .{
+            .body = .{ .rect = .init(x, y, w, h), .kind = .static }
+        };
+    }
+
+    pub fn draw(self: *Self) void {
+        rl.drawRectangleRec(self.body.rect, .yellow);
+    }
 };

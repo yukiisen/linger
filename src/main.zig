@@ -20,7 +20,7 @@ pub fn main(init: std.process.Init) !void {
     try game.load();
 
     while (!rl.windowShouldClose()) {
-        const dt = rl.getFrameTime();
+        const dt = @min(rl.getFrameTime(), 1.0 / 60.0);
         try game.update(dt);
 
         rl.beginTextureMode(target);

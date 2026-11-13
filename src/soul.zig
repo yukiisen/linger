@@ -94,7 +94,7 @@ pub const Soul = struct {
             self.state = .attached;
             self.possessed.body.acceleration.y = self.possessed.body.acceleration.y * 2;
 
-            for (entities) |entity| {
+            for (entities) |*entity| {
                 if (rl.checkCollisionCircleRec(self.getCenter(), 32, entity.body.rect)) {
                     if (entity.getPossessed()) |possessed| {
                         self.possessed = possessed;

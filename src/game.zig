@@ -14,10 +14,7 @@ pub const WIDTH = 640;
 pub const HEIGHT = 360;
 
 gpa: std.mem.Allocator,
-player: Player = .spawn(10, 0, .red),
-player2: Player = .spawn(10, 4, .pink),
 soul: Soul = undefined,
-blocks: std.array_list.Managed(Block),
 entities: std.array_list.Managed(Entity),
 camera: rl.Camera2D = .{
     .offset = .zero(),
@@ -29,17 +26,23 @@ camera: rl.Camera2D = .{
 pub fn init(gpa: std.mem.Allocator) Self {
     return .{
         .gpa = gpa,
-        .blocks = .init(gpa),
         .entities =  .init(gpa),
     };
 }
 
 pub fn deinit(self: *Self) void {
-    self.blocks.deinit();
+    for (self.entities.items) |*e| e.destroy();
     self.entities.deinit();
 }
 
 pub fn load(self: *Self) !void {
+    const player: Player = .spawn(10, 0, .red);
+    const player2: Player = .spawn(10, 4, .pink);
+    try self.entities.append(try .create(self.gpa, player));
+    try self.entities.append(try .create(self.gpa, player2));
+
+    self.soul = .{ .possessed = self.entities.items[0].getPossessed().? };
+
     const level = [_][]const u8{
         "....................................................",
         "...........................####.....................",
@@ -61,20 +64,16 @@ pub fn load(self: *Self) !void {
         for (row, 0..) |tile, x| {
             if (tile != '#') continue;
 
-            try self.blocks.append(.{
-                .rect = .init(
-                    @floatFromInt(x * 32),
-                    @floatFromInt(y * 32),
-                    32,
-                    32,
-                ),
-            });
+            const block = Block.init(
+                @floatFromInt(x * 32),
+                @floatFromInt(y * 32),
+                32,
+                32,
+            );
+
+            try self.entities.append(try .create(self.gpa, block));
         }
     }
-
-    self.soul = .{ .possessed = self.player.getPossessed() };
-    try self.entities.append(.create(&self.player));
-    try self.entities.append(.create(&self.player2));
 }
 
 pub fn update(self: *Self, dt: f32) !void {
@@ -95,11 +94,16 @@ pub fn update(self: *Self, dt: f32) !void {
 }
 
 fn handle_movement(self: *Self, dt: f32, body: *Body) void {
+    if (body.kind == .static) return;
+
     body.velocity = body.velocity.add(body.acceleration.scale(dt));
 
     body.rect.x = body.rect.x + body.velocity.x * dt;
 
-    for (self.blocks.items) |block| {
+    for (self.entities.items) |entity| {
+        const block = entity.body;
+        if (block.kind == .dynamic) continue;
+
         if (!rl.checkCollisionRecs(body.rect, block.rect)) continue;
 
         if (body.velocity.x > 0) {
@@ -115,7 +119,10 @@ fn handle_movement(self: *Self, dt: f32, body: *Body) void {
     body.rect.y = body.rect.y + body.velocity.y * dt;
     body.grounded = false;
 
-    for (self.blocks.items) |block| {
+    for (self.entities.items) |entity| {
+        const block = entity.body;
+        if (block.kind == .dynamic) continue;
+
         if (!rl.checkCollisionRecs(body.rect, block.rect)) continue;
 
         if (body.velocity.y > 0) {
@@ -132,15 +139,11 @@ fn handle_movement(self: *Self, dt: f32, body: *Body) void {
 pub fn draw(self: *const Self) !void {
     self.camera.begin();
     
-    for (self.entities.items) |entity| {
+    for (self.entities.items) |*entity| {
         try entity.draw();
     }
 
     try self.soul.draw();
-
-    for (self.blocks.items) |block| {
-        rl.drawRectangleRec(block.rect, .yellow);
-    }
 
     self.camera.end();
 
