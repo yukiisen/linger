@@ -5,6 +5,7 @@ const Body = @import("entities.zig").Body;
 const Block = @import("entities.zig").Block;
 const Player = @import("entities.zig").Player;
 const Entity = @import("entities.zig").Entity;
+const EntityPool = @import("entities.zig").EntityPool;
 const Soul = @import("soul.zig").Soul;
 const Possessed = @import("soul.zig").Possessed;
 
@@ -15,7 +16,7 @@ pub const HEIGHT = 360;
 
 gpa: std.mem.Allocator,
 soul: Soul = undefined,
-entities: std.array_list.Managed(Entity),
+world: EntityPool,
 camera: rl.Camera2D = .{
     .offset = .zero(),
     .target = .zero(),
@@ -26,22 +27,18 @@ camera: rl.Camera2D = .{
 pub fn init(gpa: std.mem.Allocator) Self {
     return .{
         .gpa = gpa,
-        .entities =  .init(gpa),
+        .world = .init(gpa),
     };
 }
 
 pub fn deinit(self: *Self) void {
-    for (self.entities.items) |*e| e.destroy();
-    self.entities.deinit();
+    self.world.deinit();
 }
 
 pub fn load(self: *Self) !void {
-    const player: Player = .spawn(10, 0, .red);
-    const player2: Player = .spawn(10, 4, .pink);
-    try self.entities.append(try .create(self.gpa, player));
-    try self.entities.append(try .create(self.gpa, player2));
-
-    self.soul = .{ .possessed = self.entities.items[0].getPossessed().? };
+    try self.world.spawn(Player, .spawn(10, 0, .red));
+    try self.world.spawn(Player, .spawn(10, 4, .pink));
+    self.soul = .{ .possessed = self.world.entities[0].getPossessed().? };
 
     const level = [_][]const u8{
         "....................................................",
@@ -64,24 +61,24 @@ pub fn load(self: *Self) !void {
         for (row, 0..) |tile, x| {
             if (tile != '#') continue;
 
-            const block = Block.init(
+            try self.world.spawnCollider(Block, .init(
                 @floatFromInt(x * 32),
                 @floatFromInt(y * 32),
                 32,
                 32,
-            );
-
-            try self.entities.append(try .create(self.gpa, block));
+            ));
         }
     }
 }
 
 pub fn update(self: *Self, dt: f32) !void {
-    try self.soul.update(self.entities.items, dt);
+    try self.soul.update(self.world.entities, dt);
 
-    for (self.entities.items) |*entity| {
+    for (self.world.entities) |*entity| {
         try entity.update(dt);
-        self.handle_movement(dt, entity.body);
+
+        if (entity.body.kind != .static) 
+            self.handle_movement(dt, entity.body);
     }
 
     self.camera.target = .lerp(
@@ -94,23 +91,16 @@ pub fn update(self: *Self, dt: f32) !void {
 }
 
 fn handle_movement(self: *Self, dt: f32, body: *Body) void {
-    if (body.kind == .static) return;
-
     body.velocity = body.velocity.add(body.acceleration.scale(dt));
 
     body.rect.x = body.rect.x + body.velocity.x * dt;
 
-    for (self.entities.items) |entity| {
-        const block = entity.body;
-        if (block.kind == .dynamic) continue;
-
-        if (!rl.checkCollisionRecs(body.rect, block.rect)) continue;
-
-        if (body.velocity.x > 0) {
-            body.rect.x = block.rect.x - body.rect.width;
-        } else if (body.velocity.x < 0) {
-            body.rect.x = block.rect.x + block.rect.width;
-        }
+    const horizontal = self.world.queryColliders(body.rect);
+    for (horizontal) |block| {
+        if (body.velocity.x > 0)
+            body.rect.x = block.x - body.rect.width
+        else if (body.velocity.x < 0)
+            body.rect.x = block.x + block.width;
 
         body.velocity.x = 0;
     }
@@ -119,17 +109,13 @@ fn handle_movement(self: *Self, dt: f32, body: *Body) void {
     body.rect.y = body.rect.y + body.velocity.y * dt;
     body.grounded = false;
 
-    for (self.entities.items) |entity| {
-        const block = entity.body;
-        if (block.kind == .dynamic) continue;
-
-        if (!rl.checkCollisionRecs(body.rect, block.rect)) continue;
-
+    const vertical = self.world.queryColliders(body.rect);
+    for (vertical) |block| {
         if (body.velocity.y > 0) {
-            body.rect.y = block.rect.y - body.rect.height;
+            body.rect.y = block.y - body.rect.height;
             body.grounded = true;
         } else if (body.velocity.y < 0) {
-            body.rect.y = block.rect.y + block.rect.height;
+            body.rect.y = block.y + block.height;
         }
 
         body.velocity.y = 0;
@@ -139,7 +125,7 @@ fn handle_movement(self: *Self, dt: f32, body: *Body) void {
 pub fn draw(self: *const Self) !void {
     self.camera.begin();
     
-    for (self.entities.items) |*entity| {
+    for (self.world.entities) |*entity| {
         try entity.draw();
     }
 

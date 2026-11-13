@@ -26,24 +26,92 @@ pub const Body = struct {
     }
 };
 
+pub const EntityPool = struct {
+    const Self = @This();
+
+    _entities: std.ArrayList(Entity) = .empty,
+    _colliders: std.ArrayList(Entity) = .empty,
+
+    gpa: std.mem.Allocator,
+    entities: []Entity = &.{},
+    colliders: []Entity = &.{},
+
+    overlaps: std.ArrayList(rl.Rectangle) = .empty,
+
+    pub fn init(gpa: std.mem.Allocator) Self {
+        return .{ 
+            .gpa = gpa,
+        };
+    }
+
+    pub fn deinit(self: *Self) void {
+        for (self.entities) |*entity|
+            entity.destroy();
+
+        self._entities.deinit(self.gpa);
+        self._colliders.deinit(self.gpa);
+
+        self.overlaps.deinit(self.gpa);
+    }
+
+    pub fn queryColliders(self: *Self, rect: rl.Rectangle) []const rl.Rectangle {
+        self.overlaps.clearRetainingCapacity();
+        for (self.colliders) |c| {
+            if (rl.checkCollisionRecs(c.body.rect, rect)) 
+                self.overlaps.append(self.gpa, c.body.rect) catch {};
+        }
+
+        return self.overlaps.items;
+    }
+
+    pub fn spawnCollider(self: *Self, comptime T: type, val: T) !void {
+        try self.spawn(T, val);
+        
+        const collider = self.entities[self.entities.len - 1];
+
+        try self._colliders.append(self.gpa, collider);
+        self.colliders = self._colliders.items;
+    }
+
+    pub fn spawn(self: *Self, comptime T: type, val: T) !void {
+        const ptr = try self.gpa.create(T);
+        errdefer self.gpa.destroy(ptr);
+
+        ptr.* = val;
+
+        const entity = Entity.create(self.gpa, ptr);
+        try self._entities.append(self.gpa, entity);
+        self.entities = self._entities.items;
+    }
+
+    pub fn despawn(self: *Self, entity: Entity) void {
+        for (self.entities, 0..) |target, i| {
+            if (target.ptr == entity.ptr) self._entities.swapRemove(i);
+        }
+
+        for (self.colliders, 0..) |target, i| {
+            if (target.ptr == entity.ptr) self._colliders.swapRemove(i);
+        }
+
+        entity.destroy();
+    }
+};
+
 pub const Entity = struct {
     const Self = @This();
 
-    gpa: std.mem.Allocator,
     ptr: *anyopaque,
+    gpa: std.mem.Allocator,
     body: *Body,
     updateFn: *const fn(*anyopaque, f32) anyerror!void,
     drawFn: *const fn(*anyopaque) anyerror!void,
     possessedFn: *const fn(*anyopaque) ?soul.Possessed,
     deinitFn: *const fn(*anyopaque, std.mem.Allocator) void,
 
-    pub fn create(gpa: std.mem.Allocator, val: anytype) !Self {
-        const T = @TypeOf(val);
+    pub fn create(gpa: std.mem.Allocator, ptr: anytype) Self {
+        const T = @typeInfo(@TypeOf(ptr)).pointer.child;
         if (@typeInfo(T) != .@"struct") @compileError(@typeName(T) ++ " is not a struct type");
         if (!@hasField(T, "body")) @compileError("Type " ++ @typeName(T) ++ " has no field named body");
-
-        const ptr = try gpa.create(T);
-        ptr.* = val;
 
         return .{
             .ptr = ptr,
