@@ -1,37 +1,8 @@
 const std = @import("std");
 const rl = @import("raylib");
 
-const Body = @import("entities.zig").Body;
-const Entity = @import("entities.zig").Entity;
-
-pub const Possessed = struct {
-    const Self = @This();
-
-    ptr: *anyopaque,
-    body: *Body,
-    updateFn: *const fn(*anyopaque, f32) anyerror!void,
-
-    pub fn init(ptr: anytype) Self {
-        const T = @typeInfo(@TypeOf(ptr)).pointer.child;
-        if (!@hasField(T, "body")) @compileError("Type " ++ @typeName(T) ++ " has no field named body");
-        if (!@hasDecl(T, "pupdate")) @compileError("Type " ++ @typeName(T) ++ " has no member named pupdate");
-
-        return .{
-            .ptr = ptr,
-            .body = &@field(ptr, "body"),
-            .updateFn = struct {
-                fn f(p: *anyopaque, dt: f32) !void {
-                    const self: *T = @alignCast(@ptrCast(p));
-                    return T.pupdate(self, dt);
-                }
-            }.f,
-        };
-    }
-
-    pub fn update(self: *Self, dt: f32) !void {
-        return self.updateFn(self.ptr, dt);
-    }
-};
+const Body = @import("entities/entities.zig").Body;
+const Entity = @import("entities/entities.zig").Entity;
 
 pub const Soul = struct {
     const Self = @This();
@@ -114,3 +85,33 @@ pub const Soul = struct {
         }
     }
 };
+
+pub const Possessed = struct {
+    const Self = @This();
+
+    ptr: *anyopaque,
+    body: *Body,
+    updateFn: *const fn(*anyopaque, f32) anyerror!void,
+
+    pub fn init(ptr: anytype) Self {
+        const T = @typeInfo(@TypeOf(ptr)).pointer.child;
+        if (!@hasField(T, "body")) @compileError("Type " ++ @typeName(T) ++ " has no field named body");
+        if (!@hasDecl(T, "pupdate")) @compileError("Type " ++ @typeName(T) ++ " has no member named pupdate");
+
+        return .{
+            .ptr = ptr,
+            .body = &@field(ptr, "body"),
+            .updateFn = struct {
+                fn f(p: *anyopaque, dt: f32) !void {
+                    const self: *T = @alignCast(@ptrCast(p));
+                    return T.pupdate(self, dt);
+                }
+            }.f,
+        };
+    }
+
+    pub fn update(self: *Self, dt: f32) !void {
+        return self.updateFn(self.ptr, dt);
+    }
+};
+
