@@ -13,7 +13,7 @@ pub const Soul = struct {
     possessed: Possessed,
 
     const DETACH_BTN: rl.KeyboardKey = .o;
-    const RADIUS = 32 * 4;
+    const RADIUS = 38 * 4;
 
     const speed = 240;
 

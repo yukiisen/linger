@@ -31,11 +31,14 @@ pub fn unload(self: *Self) void {
 }
 
 pub fn load(self: *Self, io: std.Io) !void {
-    try self.world.spawn(Player, .spawn(10, 0, .red));
-    try self.world.spawn(Player, .spawn(10, 4, .pink));
-    self.soul = .{ .possessed = self.world.entities[0].getPossessed().? };
+    try textures.loadTexture("assets/maid/idle.png", "maid_idle");
+    try textures.loadTexture("assets/maid/running.png", "maid_run");
 
-    const map = try tiled.loadTilemap("assets/Map.json", io, self.gpa);
+    try self.world.spawn(Player, try .spawn(self.gpa, 10, 0));
+    try self.world.spawn(Player, try .spawn(self.gpa, 10, 4));
+    self.soul = .{ .possessed = self.world.entities[1].getPossessed().? };
+
+    const map = try tiled.loadTilemap("levels/Map.json", io, self.gpa);
     defer map.deinit();
 
     try tiled.parseTilemapLayers(&map.value, &self.world);
