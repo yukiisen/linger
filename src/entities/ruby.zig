@@ -21,31 +21,53 @@ pub const gravity = 900;
 
 pub fn spawn(gpa: std.mem.Allocator, x: f32, y: f32) !Self {
     var self = Self { .animation = .init(gpa) };
-    self.body.rect = .init(x * 32, y * 32, 39, 54);
+    self.body.rect = .init(x * 32, y * 32, 22, 32);
 
     try self.animation.create("idle", .{
-        .tex = texture.get("maid_idle"),
+        .tex = texture.get("ruby_idle"),
 
-        .frame_width = 1536/4,
-        .frame_height = 128,
+        .frame_width = 60,
+        .frame_height = 80,
+        .padding = .init(20, 0),
+
+        .offset = .init(0, -2),
 
         .start = 0,
-        .end = 4,
+        .end = 18,
 
-        .frame_duration = 0.2,
+        .frame_duration = 0.07,
         .repeat = -1,
     });
 
     try self.animation.create("run", .{
-        .tex = texture.get("maid_run"),
+        .tex = texture.get("ruby_run"),
 
-        .frame_width = 2304/6,
-        .frame_height = 128,
+        .frame_width = 60,
+        .frame_height = 80,
+        .padding = .init(20, 0),
+
+        .offset = .init(0, -2),
 
         .start = 0,
-        .end = 6,
+        .end = 24,
 
-        .frame_duration = 0.1,
+        .frame_duration = 0.035,
+        .repeat = -1,
+    });
+
+    try self.animation.create("jump", .{
+        .tex = texture.get("ruby_jump"),
+
+        .frame_width = 60,
+        .frame_height = 80,
+        .padding = .init(20, 0),
+
+        .offset = .init(0, -2),
+
+        .start = 0,
+        .end = 19,
+
+        .frame_duration = 0.05,
         .repeat = -1,
     });
 
@@ -67,21 +89,22 @@ pub fn pupdate(self: *Self, _: f32) void {
     if (rl.isKeyDown(.a)) {
         self.body.velocity.x = -speed;
         self.flip = true;
-        self.animation.play("run");
+        if (self.body.grounded) self.animation.play("run");
     }
     else if (rl.isKeyDown(.d)) {
         self.body.velocity.x = speed;
         self.flip = false;
-        self.animation.play("run");
+        if (self.body.grounded) self.animation.play("run");
     }
     else {
         self.body.velocity.x = 0;
-        self.animation.play("idle");
+        if (self.body.grounded) self.animation.play("idle");
     }
 
     if (rl.isKeyDown(.space) and self.body.grounded) {
         self.body.velocity.y = jump;
         self.body.grounded = false;
+        self.animation.play("jump");
     }
 }
 
@@ -90,6 +113,5 @@ pub fn getPossessed(self: *Self) soul.Possessed {
 }
 
 pub fn draw(self: *const Self) void {
-    // rl.drawRectangleLinesEx(self.body.rect, 1, .blue);
     self.animation.draw(self.body.getCenter().add(.init(0, -4)), self.flip);
 }

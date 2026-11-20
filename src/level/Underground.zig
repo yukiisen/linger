@@ -4,11 +4,13 @@ const rl = @import("raylib");
 const Soul = @import("../soul.zig").Soul;
 const EntityPool = @import("../entities/entities.zig").EntityPool;
 
-const Player = @import("../entities/player.zig");
+const Ruby = @import("../entities/ruby.zig");
 const Block = @import("../entities/platform.zig").Block;
 
 const tiled = @import("../res/tiled.zig");
 const textures = @import("../res/textures.zig");
+
+const conf = @import("../config.zig");
 
 const Self = @This();
 gpa: std.mem.Allocator,
@@ -31,11 +33,12 @@ pub fn unload(self: *Self) void {
 }
 
 pub fn load(self: *Self, io: std.Io) !void {
-    try textures.loadTexture("assets/maid/idle.png", "maid_idle");
-    try textures.loadTexture("assets/maid/running.png", "maid_run");
+    try textures.loadTexture("assets/itch/idle.png", "ruby_idle");
+    try textures.loadTexture("assets/itch/jump.png", "ruby_jump");
+    try textures.loadTexture("assets/itch/run.png", "ruby_run");
 
-    try self.world.spawn(Player, try .spawn(self.gpa, 10, 0));
-    try self.world.spawn(Player, try .spawn(self.gpa, 10, 4));
+    try self.world.spawn(Ruby, try .spawn(self.gpa, 10, 0));
+    try self.world.spawn(Ruby, try .spawn(self.gpa, 10, 4));
     self.soul = .{ .possessed = self.world.entities[1].getPossessed().? };
 
     const map = try tiled.loadTilemap("levels/Map.json", io, self.gpa);
@@ -59,6 +62,8 @@ pub fn draw(self: *const Self) !void {
     for (self.world.entities) |*entity| {
         try entity.draw();
     }
+
+    if (conf.DebugBodies) self.world.drawDebug();
 
     try self.soul.draw();
 }

@@ -1,6 +1,8 @@
 const std = @import("std");
 const rl = @import("raylib");
 
+const conf = @import("../config.zig");
+
 pub const Animation = struct {
     name: []const u8,
     texture: rl.Texture,
@@ -132,8 +134,12 @@ pub const AnimationPlayer = struct {
     pub fn draw(self: *const Self, pos: rl.Vector2, flip: bool) void {
         if (self.active) |active| {
             var src = active.getSource();
+            const position = pos.subtract(.init(src.width / 2, src.height / 2)).subtract(active.offset);
             if (flip) src.width = -src.width;
-            rl.drawTextureRec(active.texture, src, pos.subtract(.init(@abs(src.width / 2), src.height / 2)), .white);
+
+            rl.drawTextureRec(active.texture, src, position, .white);
+
+            if (conf.DebugSprites) rl.drawRectangleLinesEx(.init(position.x, position.y, @abs(src.width), src.height), 1, .red);
         }
     }
 

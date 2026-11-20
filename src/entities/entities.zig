@@ -203,4 +203,16 @@ pub const EntityPool = struct {
         }
     }
 
+    pub fn drawDebug(self: *const Self) void {
+        for (self.entities) |entity| {
+            const color: rl.Color = switch (entity.body.kind) {
+                .static => .yellow,
+                .dynamic => .blue,
+                .kinematic => .green,
+            };
+
+            rl.drawRectangleLinesEx(entity.body.rect, 1, color);
+        }
+    }
+
 };

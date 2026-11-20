@@ -14,6 +14,7 @@ pub const Soul = struct {
 
     const DETACH_BTN: rl.KeyboardKey = .o;
     const RADIUS = 38 * 4;
+    const SLOW_RATE = 4;
 
     const speed = 240;
 
@@ -29,7 +30,7 @@ pub const Soul = struct {
             self.state = .detached;
             self.possessed.body.velocity = .zero();
             self.rect = self.possessed.body.rect;
-            self.possessed.body.acceleration.y = self.possessed.body.acceleration.y / 2;
+            self.possessed.body.acceleration.y = self.possessed.body.acceleration.y / SLOW_RATE;
         }
 
         if (self.state == .attached) return self.possessed.update(dt);
@@ -63,7 +64,7 @@ pub const Soul = struct {
 
         if (!rl.isKeyDown(DETACH_BTN)) {
             self.state = .attached;
-            self.possessed.body.acceleration.y = self.possessed.body.acceleration.y * 2;
+            self.possessed.body.acceleration.y = self.possessed.body.acceleration.y * SLOW_RATE;
 
             for (entities) |*entity| {
                 if (rl.checkCollisionCircleRec(self.getCenter(), 32, entity.body.rect)) {
